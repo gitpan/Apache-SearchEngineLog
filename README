@@ -1,4 +1,4 @@
-Apache::SearchEngineLog 0.30 README
+Apache::SearchEngineLog 0.40 README
 -----------------------------------
 
 Apache::SearchEngineLog is a mod_perl module for apache to log the terms
@@ -58,8 +58,12 @@ Performance
 -----------
 
 Since this is the very first release I don't have any information on this
-topic yet. If you experience any difficulties under load, please let me
-know.
+topic yet. If you gather any experience with this module under load or any
+other platform than those listed on the homepage please let me know!
+
+Although this module does not use Apache::DBI it still uses persistent
+connections to the database. Same thing: Please report any experiences you
+make!
 
 The 'createtable.sql' creates indexes for the 'hits' table which should be
 a performance gain if you have a few entries in the database.

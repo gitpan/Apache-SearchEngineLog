@@ -9,9 +9,9 @@ use Apache;
 use Apache::Log;
 use DBI;
 
-use vars qw#$SERVER $REGEXEN $DBH $STH#;
+use vars qw#$SERVER $REGEXEN $DBH $STH $TIMEOUT $LASTPING#;
 
-our $VERSION = '0.30';
+our $VERSION = '0.40';
 
 return 1 if $0 eq 'test.pl';
 
@@ -25,11 +25,12 @@ sub handler
 	my %h = $r->headers_in ();
 	my $l = $r->log ();
 
-	$l->debug ("Apache::SearchEngineLog: entering handle()");
+	$l->debug ("Apache::SearchEngineLog: handling request..");
 
 	# first step: check for a (valid and usfull) referer
 	unless (defined $h{'Referer'})
 	{
+		$l->debug ("Apache::SearchEngineLog: no referer defined..");
 		return 1;
 	}
 
@@ -45,6 +46,7 @@ sub handler
 	}
 	else
 	{
+		$l->debug ("Apache::SearchEngineLog: No parameters present..");
 		return 1;
 	}
 
@@ -62,6 +64,8 @@ sub handler
 	my $field;
 	if (!defined $SERVER->{$server})
 	{
+		$l->debug ("Apache::SearchEngineLog: Unknown server: $server! Checking..");
+
 		# servers without an apropriate entry in $REGEXEN should
 		# leave us here..
 		$field = check_regexen ($server) or return 1;
@@ -69,6 +73,8 @@ sub handler
 		if (defined $params{$field})
 		{
 			$SERVER->{$server} = $field;
+
+			check_alive_dbi ($l);
 
 			my $sth = $DBH->prepare ("INSERT INTO config (domain, field) VALUES (?, ?)");
 			$sth->execute ($server, $field);
@@ -79,6 +85,7 @@ sub handler
 	}
 	else
 	{
+		$l->debug ("Apache::SearchEngineLog: Known server: $server");
 		$field = $SERVER->{$server};
 	}
 
@@ -91,14 +98,13 @@ sub handler
 	# ignore goggle's cache-parameters and related option
 	if ($params{$field} =~ m#^(?:cache|related):\S+\s#)
 	{
+		# $' == everything right of match, FYI
 		$params{$field} = $';
 	}
 
 	my $uri = $r->uri ();
-	my $virtual = '';
 	my $s = $r->server ();
-
-	$virtual = $s->server_hostname ();
+	my $virtual = $s->server_hostname ();
 
 	my @terms = ();
 	foreach my $term (split (m#\s+#, $params{$field}))
@@ -170,16 +176,9 @@ sub init
 		qr#metacrawler\.#	=>	'general'
 	};
 
-	my $db_source = $ENV{'DBI_data_source'} or $l->error ("Apache::SearchEngineLog: DBI_data_source not defined");
-	my $db_user   = $ENV{'DBI_username'} or $l->error ("Apache::SearchEngineLog: DBI_username not defined");
-	my $db_passwd = $ENV{'DBI_password'} or $l->error ("Apache::SearchEngineLog: DBI_password not defined");
-	my $db_table  =	(defined $ENV{'DBI_table'} ? $ENV{'DBI_table'} : 'hits');
-
-	$DBH = DBI->connect ($db_source, $db_user, $db_passwd) or $l->error ('Apache::SearchEngineLog: ' . DBI->errstr ());
-
-	$l->debug ("Apache::SearchEngineLog: Database connection established");
-
-	$STH = $DBH->prepare ("INSERT INTO $db_table (date, domain, term, uri, vhost) VALUES (NOW(), ?, ?, ?, ?)") or $l->error ($DBH->errstr ());
+	# ping database in this interval at the very most..
+	$TIMEOUT = 10;
+	connect_dbi ($l);
 
 	Apache->server->register_cleanup (\&cleanup);
 
@@ -196,6 +195,53 @@ sub init
 	$sth->finish ();
 
 	$l->debug ("Apache::SearchEngineLog: init done");
+
+	return 1;
+}
+
+sub check_alive_dbi
+{
+	my $l = shift;
+
+	my $time = time;
+
+	if (($time - $TIMEOUT) < $LASTPING)
+	{
+		return 1;
+	}
+
+	$l->debug ('Apache::SearchEngineLog: Timeout reached, pinging');
+
+	if ($DBH->ping ())
+	{
+		$LASTPING = $time;
+
+		return 1;
+	}
+
+	$l->info ('Apache::SearchEngineLog: Connection to database died: Reconnecting');
+
+	connect_dbi ($l);
+
+	return 1;
+}
+
+sub connect_dbi
+{
+	my $l = shift;
+
+	my $db_source = $ENV{'DBI_data_source'} or $l->error ("Apache::SearchEngineLog: DBI_data_source not defined");
+	my $db_user   = $ENV{'DBI_username'} or $l->error ("Apache::SearchEngineLog: DBI_username not defined");
+	my $db_passwd = $ENV{'DBI_password'} or $l->error ("Apache::SearchEngineLog: DBI_password not defined");
+	my $db_table  =	(defined $ENV{'DBI_table'} ? $ENV{'DBI_table'} : 'hits');
+
+	$DBH = DBI->connect ($db_source, $db_user, $db_passwd) or $l->error ('Apache::SearchEngineLog: ' . DBI->errstr ());
+
+	$l->info ("Apache::SearchEngineLog: Database connection established");
+
+	$STH = $DBH->prepare ("INSERT INTO $db_table (date, domain, term, uri, vhost) VALUES (NOW(), ?, ?, ?, ?)") or $l->error ($DBH->errstr ());
+
+	$LASTPING = time;
 
 	return 1;
 }

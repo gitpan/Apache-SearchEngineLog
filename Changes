@@ -1,5 +1,9 @@
 Revision history for Perl extension Apache::SearchEngineLog.
 
+0.40  Wed Jun 26 17:24:30 2002
+	- Improved persistance of the connection to the database
+	- More debug messages
+
 0.30  Sun Jun 23 00:36:47 2002
 	- First stable version
 	- createtable.sql now creates usefull indexes as well
