@@ -172,8 +172,10 @@ sub init
 sub end_html
 {
 	print <<EOF;
-<hr>
-<p style="text-align: right;font-size: 8pt;">This script is part of <a href="http://verplant.org/SearchEngineLog/">Apache::SearchEngineLog</a>, written by Florian Forster &lt;octopus at verplant.org&gt;</p>
+<hr />
+<p style="text-align: right;font-size: 8pt;">This script is part of
+<a href="http://verplant.org/SearchEngineLog/">Apache::SearchEngineLog</a>,
+written by Florian Forster &lt;octopus at verplant.org&gt;</p>
 
 </body>
 </html>

@@ -1,5 +1,9 @@
 Revision history for Perl extension Apache::SearchEngineLog.
 
+0.51  Sun Jul  7 12:49:22 2002
+	- Few code-internal changes and improvements
+	- Stable version
+
 0.50  Sun Jun 30 15:31:21 2002
 	- HTTP-Redirects are now recognized and logged properly
 	- A bug in the code for persistent connections has been fixed

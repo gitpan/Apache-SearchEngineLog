@@ -1,4 +1,4 @@
-Apache::SearchEngineLog 0.50 README
+Apache::SearchEngineLog 0.51 README
 -----------------------------------
 
 Apache::SearchEngineLog is a mod_perl module for apache to log the terms

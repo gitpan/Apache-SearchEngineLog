@@ -11,25 +11,191 @@ use DBI;
 
 use vars qw#$SERVER $REGEXEN $DBH $STH $TIMEOUT $LASTPING#;
 
-our $VERSION = '0.50';
+our $VERSION = '0.51';
 
+# to have the test-script run ok
 return 1 if $0 eq 'test.pl';
 
 init ();
 
 return 1;
+#List of subroutines:
+# check_alive_dbi
+# check_regexen
+# cleanup
+# connect_dbi
+# db_save
+# handler
+# init
+
+sub check_alive_dbi
+##########################################################################
+# Checks wether DB connection is alive by pinging it periodically.       #
+# Reconnects if neccessary.                                              #
+#                                                                        #
+# Arguments:                                                             #
+#  0: Apache::Log object                                                 #
+#                                                                        #
+# Returns:                                                               #
+#  0: true if (re)conntected; false if reconnect fails                   #
+##########################################################################
+{
+	my $l = shift;
+
+	my $time = time;
+
+	if (($time - $TIMEOUT) < $LASTPING)
+	{
+		return 1;
+	}
+
+	$l->debug ('Apache::SearchEngineLog: Timeout reached, pinging');
+
+	if ($DBH->ping ())
+	{
+		$LASTPING = $time;
+		return 1;
+	}
+
+	$l->info ('Apache::SearchEngineLog: Connection to database died: Reconnecting');
+	return connect_dbi ($l);
+}
+
+sub check_regexen
+##########################################################################
+# Uses regexen to check which rule applies to a given server (if any)    #
+# and returns the parameter field which contains usefull information.    #
+#                                                                        #
+# Arguments:                                                             #
+#  0: Name of server as string                                           #
+#                                                                        #
+# Returns:                                                               #
+#  0: Name of parameter                                                  #
+##########################################################################
+{
+	my $server = shift;
+	my $retval = '';
+
+	foreach my $re (keys %$REGEXEN)
+	{
+		if ($server =~ m#$re#)
+		{
+			$retval = $REGEXEN->{$re};
+			last;
+		}
+	}
+
+	return $retval;
+}
+
+sub cleanup
+##########################################################################
+# Checks wether DB connection is alive by pinging it periodically.       #
+# Reconnects if neccessary.                                              #
+#                                                                        #
+# Arguments:                                                             #
+#  None                                                                  #
+#                                                                        #
+# Returns:                                                               #
+#  0: true                                                               #
+##########################################################################
+{
+	$DBH->disconnect ();
+	return 1;
+}
+
+sub connect_dbi
+##########################################################################
+# Connects to the database.                                              #
+#                                                                        #
+# Arguments:                                                             #
+#  0: Apache::Log object                                                 #
+#                                                                        #
+# Returns:                                                               #
+#  0: true if successfully connected, false otherwise                    #
+##########################################################################
+{
+	my $l = shift;
+
+	my $db_source = $ENV{'DBI_data_source'} or $l->error ("Apache::SearchEngineLog: DBI_data_source not defined");
+	my $db_user   = $ENV{'DBI_username'} or $l->error ("Apache::SearchEngineLog: DBI_username not defined");
+	my $db_passwd = $ENV{'DBI_password'} or $l->error ("Apache::SearchEngineLog: DBI_password not defined");
+	my $db_table  =	(defined $ENV{'DBI_table'} ? $ENV{'DBI_table'} : 'hits');
+
+	if ($DBH = DBI->connect ($db_source, $db_user, $db_passwd))
+	{
+		$l->info ("Apache::SearchEngineLog: Database connection established");
+	}
+	else
+	{
+		$l->error ('Apache::SearchEngineLog: Unable to connect: ' . DBI->errstr ());
+		return 0;
+	}
+
+	if ($STH = $DBH->prepare ("INSERT INTO $db_table (date, domain, term, uri, vhost) VALUES (NOW(), ?, ?, ?, ?)"))
+	{
+		$LASTPING = time;
+		return 1;
+	}
+	else
+	{
+		$l->error ('Apache::SearchEngineLog: ' . $DBH->errstr ());
+		return 0;
+	}
+	
+	return undef;
+}
+
+sub db_save
+##########################################################################
+# Saves the given arguments to the database.                             #
+#                                                                        #
+# Arguments:                                                             #
+#  0: Name of the remote server                                          #
+#  1: The URI requested                                                  #
+#  2: Name of the virtual host                                           #
+#  @: Terms used in the search engine                                    #
+#                                                                        #
+# Returns:                                                               #
+#  0: true                                                               #
+##########################################################################
+{
+	my $server = shift;
+	my $uri = shift;
+	my $hostname = shift;
+
+	foreach my $term (@_)
+	{
+		if ($STH->execute ($server, $term, $uri, $hostname))
+		{
+			$LASTPING = time;
+		}
+		else
+		{
+			warn $STH->errstr ();
+		}
+	}
+
+	return 1;
+}
 
 sub handler
+##########################################################################
+# The handler called by Apache. It analyses the request and the referer  #
+# and eventually calls other subroutines to assist in this task. This    #
+# is the heart of this program..                                         #
+#                                                                        #
+#                                                                        #
+# Arguments:                                                             #
+#  0: Apache::Request object                                             #
+#                                                                        #
+# Returns:                                                               #
+#  0: true                                                               #
+##########################################################################
 {
 	my $r = shift or return undef;
 	my %h = $r->headers_in ();
 	my $l = $r->log ();
-
-	my $status = $r->status ();
-	if ($status >= 400)
-	{
-		return 1;
-	}
 
 	$l->debug ("Apache::SearchEngineLog: handling request..");
 
@@ -41,6 +207,13 @@ sub handler
 	}
 
 	my $referer = $h{'Referer'};
+
+	my $status = $r->status ();
+	if ($status >= 400)
+	{
+		$l->debug ("Apache::SearchEngineLog: Not handling status code #$status..");
+		return 1;
+	}
 
 	my ($server, $params);
 	# referers are always http.. prove me wrong if i should be..
@@ -137,50 +310,23 @@ sub handler
 
 	$l->debug ("Apache::SearchEngineLog: Saving to database");
 
-	check_alive_dbi ($l);
+	check_alive_dbi ($l) or return 1;
 	db_save ($server, $uri, $virtual, @terms);
 
 	return 1;
 }
 
-sub db_save
-{
-	my $server = shift;
-	my $uri = shift;
-	my $hostname = shift;
-
-	foreach my $term (@_)
-	{
-		$STH->execute ($server, $term, $uri, $hostname) or warn $STH->errstr ();
-	}
-
-	# is this good?
-	# a died connection will not be recognized until $TIMEOUT has
-	# been reached.. And this is very unlikely to happen on not-so-low
-	# traffic sites..
-	$LASTPING = time;
-
-	return 1;
-}
-
-sub check_regexen
-{
-	my $server = shift;
-	my $retval = '';
-
-	foreach my $re (keys %$REGEXEN)
-	{
-		if ($server =~ m#$re#)
-		{
-			$retval = $REGEXEN->{$re};
-			last;
-		}
-	}
-
-	return $retval;
-}
-
 sub init
+##########################################################################
+# Initialises global variables, initiates the database connection, etc.. #
+# Just what you'd expect an init routine to do.. ;)                      #
+#                                                                        #
+# Arguments:                                                             #
+#  none                                                                  #
+#                                                                        #
+# Returns:                                                               #
+#  0: true                                                               #
+##########################################################################
 {
 	my $s = Apache->server ();
 	my $l = $s->log ();
@@ -226,58 +372,6 @@ sub init
 	$l->debug ("Apache::SearchEngineLog: init done");
 
 	return 1;
-}
-
-sub check_alive_dbi
-{
-	my $l = shift;
-
-	my $time = time;
-
-	if (($time - $TIMEOUT) < $LASTPING)
-	{
-		return 1;
-	}
-
-	$l->debug ('Apache::SearchEngineLog: Timeout reached, pinging');
-
-	if ($DBH->ping ())
-	{
-		$LASTPING = $time;
-
-		return 1;
-	}
-
-	$l->info ('Apache::SearchEngineLog: Connection to database died: Reconnecting');
-
-	connect_dbi ($l);
-
-	return 1;
-}
-
-sub connect_dbi
-{
-	my $l = shift;
-
-	my $db_source = $ENV{'DBI_data_source'} or $l->error ("Apache::SearchEngineLog: DBI_data_source not defined");
-	my $db_user   = $ENV{'DBI_username'} or $l->error ("Apache::SearchEngineLog: DBI_username not defined");
-	my $db_passwd = $ENV{'DBI_password'} or $l->error ("Apache::SearchEngineLog: DBI_password not defined");
-	my $db_table  =	(defined $ENV{'DBI_table'} ? $ENV{'DBI_table'} : 'hits');
-
-	$DBH = DBI->connect ($db_source, $db_user, $db_passwd) or $l->error ('Apache::SearchEngineLog: ' . DBI->errstr ());
-
-	$l->info ("Apache::SearchEngineLog: Database connection established");
-
-	$STH = $DBH->prepare ("INSERT INTO $db_table (date, domain, term, uri, vhost) VALUES (NOW(), ?, ?, ?, ?)") or $l->error ($DBH->errstr ());
-
-	$LASTPING = time;
-
-	return 1;
-}
-
-sub cleanup
-{
-	$DBH->disconnect ();
 }
 
 __END__
