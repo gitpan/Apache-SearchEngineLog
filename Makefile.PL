@@ -6,7 +6,7 @@ WriteMakefile
 	'AUTHOR'	=> 'Florian Forster <octopus@verplant.org>',
 	'ABSTRACT'	=> 'Logging of search terms',
 	'VERSION_FROM'	=> 'SearchEngineLog.pm', # finds $VERSION
-	'PREREQ_PM'	=> {},
+	'PREREQ_PM'	=> { Apache => 0, DBI => 0 },
 	'PM'		=> {'SearchEngineLog.pm' => '$(INST_LIBDIR)/SearchEngineLog.pm'},
 );
 

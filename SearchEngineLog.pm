@@ -11,7 +11,7 @@ use DBI;
 
 use vars qw#$SERVER $REGEXEN $DBH $STH#;
 
-our $VERSION = '0.20';
+our $VERSION = '0.21';
 
 return 1 if $0 eq 'test.pl';
 
@@ -37,6 +37,7 @@ sub handler
 
 	my ($server, $params);
 	# referers are always http.. prove me wrong if i should be..
+	# https shouldn't work either I belive..
 	if ($referer =~ m#^http://([^/]+)/[^\?]+\?(.+)$#)
 	{
 		$server = $1;
@@ -238,6 +239,7 @@ Database, making it easy to analyse it and in turn optimize your website.
   | Field  | Type        | Null | Key | Default             | Extra |
   +--------+-------------+------+-----+---------------------+-------+
   | term   | varchar(50) |      |     |                     |       |
+  | vhost  | varchar(20) |      |     |                     |       |
   | uri    | varchar(50) |      |     |                     |       |
   | domain | varchar(20) |      |     |                     |       |
   | date   | datetime    |      |     | 0000-00-00 00:00:00 |       |

@@ -1,1 +1,12 @@
 - Make it work with Apache::DBI (or does it already?)
+- Ensure unique uris
+
+- analyse.pl
+  - order by:
+    - uri
+    - search term
+  - write html output
+  - select vhost
+  - list vhosts
+
+- write analyse.cgi

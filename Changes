@@ -1,5 +1,8 @@
 Revision history for Perl extension Apache::SearchEngineLog.
 
+0.21  Tue Jun 11 13:52:46 2002
+	- Fixes in the Makefile.PL and the POD
+
 0.20  Tue Jun 11 17:32:54 2002
 	- vhost (virtual hosts) support has been added.
 	- requests from google's cache are now handled properly.
