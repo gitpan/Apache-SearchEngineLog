@@ -1,8 +1,26 @@
-BEGIN { $| = 1; print "1..1\n"; }
+BEGIN
+{
+	$| = 1;
+	print "1..3\n";
+}
 
-use Apache::SearchEngineLog;
+eval
+{
+	require Apache;
+};
+if ($@) { print "not ok 1 [$@]\n"; }
+else { print "ok 1\n"; }
 
-$loaded = 1;
-print "ok 1\n";
+eval
+{
+	require DBI;
+};
+if ($@) { print "not ok 2 [$@]\n"; }
+else { print "ok 2\n"; }
 
-END {print "not ok 1\n" unless $loaded;}
+eval
+{
+	require Apache::SearchEngineLog;
+};
+if ($@) { print "not ok 3 [$@]\n"; }
+else { print "ok 3\n"; }

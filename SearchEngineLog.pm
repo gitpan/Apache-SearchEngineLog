@@ -11,11 +11,13 @@ use DBI;
 
 use vars qw#$SERVER $REGEXEN $DBH $STH#;
 
-our $VERSION = '0.10';
+our $VERSION = '0.20';
+
+return 1 if $0 eq 'test.pl';
 
 init ();
 
-1;
+return 1;
 
 sub handler
 {
@@ -85,7 +87,17 @@ sub handler
 		return 1;
 	}
 
+	# ignore goggle's cache-parameters
+	if ($params{$field} =~ m#^cache:\S+\s#)
+	{
+		$params{$field} = $';
+	}
+
 	my $uri = $r->uri ();
+	my $virtual = '';
+	my $s = $r->server ();
+
+	$virtual = $s->server_hostname ();
 
 	my @terms = ();
 	foreach my $term (split (m#\s+#, $params{$field}))
@@ -96,7 +108,7 @@ sub handler
 
 	$l->debug ("Apache::SearchEngineLog: Saving to database");
 
-	db_save ($server, $uri, @terms);
+	db_save ($server, $uri, $virtual, @terms);
 
 	return 1;
 }
@@ -105,10 +117,11 @@ sub db_save
 {
 	my $server = shift;
 	my $uri = shift;
+	my $hostname = shift;
 
 	foreach my $term (@_)
 	{
-		$STH->execute ($server, $term, $uri) or warn $STH->errstr ();
+		$STH->execute ($server, $term, $uri, $hostname) or warn $STH->errstr ();
 	}
 
 	return 1;
@@ -133,6 +146,9 @@ sub check_regexen
 
 sub init
 {
+	my $s = Apache->server ();
+	my $l = $s->log ();
+
 	$REGEXEN =
 	{
 		qr#yahoo\.#		=>	'p',
@@ -153,14 +169,16 @@ sub init
 		qr#metacrawler\.#	=>	'general'
 	};
 
-	my $db_source = $ENV{'DBI_data_source'} or die "DBI_data_source not defined";
-	my $db_user   = $ENV{'DBI_username'} or die "DBI_username not defined";
-	my $db_passwd = $ENV{'DBI_password'} or die "DBI_password not defined";
+	my $db_source = $ENV{'DBI_data_source'} or $l->error ("Apache::SearchEngineLog: DBI_data_source not defined");
+	my $db_user   = $ENV{'DBI_username'} or $l->error ("Apache::SearchEngineLog: DBI_username not defined");
+	my $db_passwd = $ENV{'DBI_password'} or $l->error ("Apache::SearchEngineLog: DBI_password not defined");
 	my $db_table  =	(defined $ENV{'DBI_table'} ? $ENV{'DBI_table'} : 'hits');
 
-	$DBH = DBI->connect ($db_source, $db_user, $db_passwd) or die DBI->errstr ();
+	$DBH = DBI->connect ($db_source, $db_user, $db_passwd) or $l->error ('Apache::SearchEngineLog: ' . DBI->errstr ());
 
-	$STH = $DBH->prepare ("INSERT INTO $db_table (date, domain, term, uri) VALUES (NOW(), ?, ?, ?)") or die $DBH->errstr ();
+	$l->debug ("Apache::SearchEngineLog: Database connection established");
+
+	$STH = $DBH->prepare ("INSERT INTO $db_table (date, domain, term, uri, vhost) VALUES (NOW(), ?, ?, ?, ?)") or $l->error ($DBH->errstr ());
 
 	Apache->server->register_cleanup (\&cleanup);
 
@@ -175,6 +193,8 @@ sub init
 		$SERVER->{$d} = $f;
 	}
 	$sth->finish ();
+
+	$l->debug ("Apache::SearchEngineLog: init done");
 
 	return 1;
 }
