@@ -11,7 +11,7 @@ use DBI;
 
 use vars qw#$SERVER $REGEXEN $DBH $STH $TIMEOUT $LASTPING#;
 
-our $VERSION = '0.40';
+our $VERSION = '0.50';
 
 return 1 if $0 eq 'test.pl';
 
@@ -24,6 +24,12 @@ sub handler
 	my $r = shift or return undef;
 	my %h = $r->headers_in ();
 	my $l = $r->log ();
+
+	my $status = $r->status ();
+	if ($status >= 400)
+	{
+		return 1;
+	}
 
 	$l->debug ("Apache::SearchEngineLog: handling request..");
 
@@ -106,6 +112,22 @@ sub handler
 	my $s = $r->server ();
 	my $virtual = $s->server_hostname ();
 
+	if ($status == 301 or $status == 302 or $status == 303 or $status == 307)
+	{
+		my $location;
+		$location = $r->header_out ('Location') or $location = '';
+		
+		if ($location =~ m#^http://([^/]+)(/[^\?]*)#)
+		{
+			my ($to_server, $to_uri) = ($1, $2);
+			if ($to_server eq $virtual)
+			{
+				$l->info ("Apache::SearchEngineLog: $uri was redirected to $to_uri; logging the latter");
+				$uri = $to_uri;
+			}
+		}
+	}
+
 	my @terms = ();
 	foreach my $term (split (m#\s+#, $params{$field}))
 	{
@@ -115,6 +137,7 @@ sub handler
 
 	$l->debug ("Apache::SearchEngineLog: Saving to database");
 
+	check_alive_dbi ($l);
 	db_save ($server, $uri, $virtual, @terms);
 
 	return 1;
@@ -130,6 +153,12 @@ sub db_save
 	{
 		$STH->execute ($server, $term, $uri, $hostname) or warn $STH->errstr ();
 	}
+
+	# is this good?
+	# a died connection will not be recognized until $TIMEOUT has
+	# been reached.. And this is very unlikely to happen on not-so-low
+	# traffic sites..
+	$LASTPING = time;
 
 	return 1;
 }
@@ -177,7 +206,7 @@ sub init
 	};
 
 	# ping database in this interval at the very most..
-	$TIMEOUT = 10;
+	$TIMEOUT = (defined $ENV{'DBI_timeout'} ? $ENV{'DBI_timeout'} : 120);
 	connect_dbi ($l);
 
 	Apache->server->register_cleanup (\&cleanup);
@@ -265,6 +294,7 @@ Apache::SearchEngineLog - Logging of terms used in search engines
   PerlSetEnv DBI_username     username
   PerlSetEnv DBI_password     password
   PerlSetEnv DBI_table        db_table #optional, defaults to "hits"
+  PerlSetEnv DBI_timeout      seconds  #optional, defaults to 120
 
   PerlModule Apache::SearchEngineLog
 

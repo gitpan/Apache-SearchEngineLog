@@ -158,7 +158,7 @@ sub init
 
 	$STHS = {};
 
-	$STHS->{'uri'}{'prim'} = $DBH->prepare ("SELECT uri, count(*) AS cnt FROM hits WHERE vhost = ? GROUP BY uri ORDER BY cnt DESC");
+	$STHS->{'uri'}{'prim'} = $DBH->prepare ("SELECT uri, count(*) AS cnt FROM hits WHERE vhost = ? GROUP BY uri ORDER BY uri ASC");
 	$STHS->{'uri'}{'secd'} = $DBH->prepare ("SELECT term, count(*) AS cnt FROM hits WHERE vhost = ? AND uri = ? GROUP BY term ORDER BY cnt DESC");
 
 	$STHS->{'term'}{'prim'} = $DBH->prepare ("SELECT term, count(*) AS cnt FROM hits WHERE vhost = ? GROUP BY term ORDER BY cnt DESC");

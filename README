@@ -1,4 +1,4 @@
-Apache::SearchEngineLog 0.40 README
+Apache::SearchEngineLog 0.50 README
 -----------------------------------
 
 Apache::SearchEngineLog is a mod_perl module for apache to log the terms
@@ -46,12 +46,17 @@ you can set in apache's httpd.conf; An configuration could be:
   PerlSetEnv DBI_username     username
   PerlSetEnv DBI_password     password
   PerlSetEnv DBI_table        db_table #optional, defaults to "hits"
+  PerlSetEnv DBI_timeout      seconds  #optional, defaults to 120
 
   PerlModule Apache::SearchEngineLog
 
   <Location /test>
     PerlLogHandler Apache::SearchEngineLog
   </Location>
+
+To ensure a database conenction the database is pinged after DBI_timeout
+seconds of inactivity. When set to 0 the database will always be pinged
+before sending the request.
 
 
 Performance
