@@ -1,5 +1,9 @@
 Revision history for Perl extension Apache::SearchEngineLog.
 
+0.22  Thu Jun 20 14:06:42 2002
+	- Improved analyse.pl
+	- Added analyse.cgi
+
 0.21  Tue Jun 11 13:52:46 2002
 	- Fixes in the Makefile.PL and the POD
 

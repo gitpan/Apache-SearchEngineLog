@@ -1,4 +1,4 @@
-Apache::SearchEngineLog 0.21 README
+Apache::SearchEngineLog 0.22 README
 -----------------------------------
 
 Apache::SearchEngineLog is a mod_perl module for apache to log the terms
@@ -67,7 +67,17 @@ Evaluation
 
 There is a script, called 'analyse.pl', in this bundle which may be used
 to analyse the collected data. (who would have guessed?! ;) It is really
-simple and not very detailed, so I propably will write a better one..
+simple and not very detailed, so I propably will write a better one.. When
+calles without arguments it will print a usage table.
+
+The second script, 'analyse.cgi' does basically the very same job, but
+formats the results as HTML. It relies on mod_perl aswell, since it reads
+the configuration the same way Apache::SearchEngineLog does it itself.
+There are security issues (a parameter is taken without checking and used
+further..) which is why I highly recommend to NOT make it accessible by
+the general public. The positive news is, that it doen't need any
+configuration at all, so using it should be as easy as "Copy into document
+root, set permissions, open a browser"..
 
 --
 Florian 'octo' Forster

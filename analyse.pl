@@ -12,6 +12,9 @@ my $user = (defined $ENV{'USER'} ? $ENV{'USER'} : '');
 my $passwd = '';
 my $output = '';
 my $type = 'mysql';
+my $list = 0;
+my $vhost = '';
+my $sort = 'uri';
 
 Getopt::Long::config ('pass_through');
 my $result = GetOptions
@@ -21,7 +24,11 @@ my $result = GetOptions
 	'user|u=s'	=>	\$user,
 	'password|p=s'	=>	\$passwd,
 	'output|o=s'	=>	\$output,
-	'type|t=s'	=>	\$type
+	'type|t=s'	=>	\$type,
+	'list|l'	=>	\$list,
+	'vhost|v=s'	=>	\$vhost,
+	'sort|s=s'	=>	\$sort
+
 );
 
 if (!$db or !$user)
@@ -29,15 +36,23 @@ if (!$db or !$user)
 	die <<EOF;
 Usage: $0 --db=<database> [options]
 
-	-h	--host		Host to connect to (default: localhost)
-	-d	--db		Name of the database to use (required!)
-	-t	--type		Type of the DB (default: mysql)
-	-u	--user		User to log into the database
-	-p	--password	Password to log into the database
-	-o	--output	File to write output to
+	-d <name>	--db		Name of the database to use (required!)
+	-t <type>	--type		Type of the DB (default: mysql)
+	-h <host>	--host		Host to connect to (default: localhost)
+	-u <user>	--user		User to log into the database
+	-p <passwd>	--password	Password to log into the database
+
+	-l		--list		Print list of all vhosts and exit
+	-v <vhosts>	--vhost		Commaseperated list of vhosts
+	-s <uri|term>	--sort		Sort by either uri or searchterm
+	-o <file>	--output	File to write output to
 
 EOF
 }
+
+my $DBH = DBI->connect ("DBI:$type:database=$db;host=$host", $user, $passwd) or die DBI->errstr ();
+
+print_list ($DBH) if $list; #and exit..
 
 if ($output)
 {
@@ -48,33 +63,54 @@ else
 	*OUT = *STDOUT;
 }
 
-my $DBH = DBI->connect ("DBI:$type:database=$db;host=$host", $user, $passwd) or die DBI->errstr ();
-my $termsth = $DBH->prepare ("SELECT term, count(*) AS cnt FROM hits WHERE uri = ? GROUP BY term ORDER BY cnt DESC");
-
-my $sth = $DBH->prepare ("SELECT uri, count(*) AS cnt FROM hits GROUP BY uri ORDER BY cnt DESC");
-$sth->execute () or die $sth->errstr ();
-
-while (my ($uri, $count) = $sth->fetchrow_array ())
+my $primsth;
+my $secsth;
+if (lc ($sort) eq 'uri')
 {
-	print OUT '=' x 75 . "\n";
-	print OUT "  $uri  ($count)\n";
-	print OUT '-' x 75 . "\n";
+	$primsth = $DBH->prepare ("SELECT uri, count(*) AS cnt FROM hits WHERE vhost = ? GROUP BY uri ORDER BY cnt DESC");
+	$secsth  = $DBH->prepare ("SELECT term, count(*) AS cnt FROM hits WHERE uri = ? AND vhost = ? GROUP BY term ORDER BY cnt DESC");
+}
+elsif (lc ($sort) eq 'term')
+{
+	$primsth = $DBH->prepare ("SELECT term, count(*) AS cnt FROM hits WHERE vhost = ? GROUP BY term ORDER BY cnt DESC");
+	$secsth = $DBH->prepare ("SELECT uri, count(*) AS cnt FROM hits WHERE term = ? AND vhost = ? GROUP BY uri ORDER BY cnt DESC");
+}
 
-	$termsth->execute ($uri) or die $termsth->errstr ();
+$vhost ||= get_list ($DBH);
 
-	while (my ($term, $count) = $termsth->fetchrow_array ())
+foreach my $virtual (split (m#,\s*#, $vhost))
+{
+	print OUT '#' x 75 . "\n";
+	print OUT "# Statistic for $virtual" . ' ' x (58 - length ($virtual)) . "#\n";
+	print OUT '#' x 75 . "\n\n";
+
+	$primsth->execute ($virtual) or die $primsth->errstr ();
+
+	while (my ($thing, $count) = $primsth->fetchrow_array ())
 	{
-		my $pad = ' ' x (55 - length ($term));
-		print  OUT "  $term$pad  ";
-		printf OUT ("%5u\n", $count);
+		print OUT '=' x 75 . "\n";
+		print OUT "  $thing  ($count)\n";
+		print OUT '-' x 75 . "\n";
+
+		$secsth->execute ($thing, $virtual) or die $secsth->errstr ();
+
+		while (my ($thing, $count) = $secsth->fetchrow_array ())
+		{
+			my $pad = ' ' x (55 - length ($thing));
+			print  OUT "  $thing$pad  ";
+			printf OUT ("%5u\n", $count);
+		}
+
+		print OUT "\n";
+
+		$secsth->finish ();
 	}
 
 	print OUT "\n";
 
-	$termsth->finish ();
+	$primsth->finish ();
 }
 
-$sth->finish ();
 $DBH->disconnect ();
 
 if ($output)
@@ -83,3 +119,46 @@ if ($output)
 }
 
 exit (0);
+
+
+
+sub print_list
+{
+	my $DBH = shift;
+
+	my $sth = $DBH->prepare ("SELECT vhost FROM hits GROUP BY vhost ORDER BY vhost ASC");
+	$sth->execute ();
+
+	print "List of known vhosts:\n";
+
+	while (my ($vhost) = $sth->fetchrow_array ())
+	{
+		print "  $vhost\n";
+	}
+
+	print "\n";
+
+	$sth->finish ();
+	$DBH->disconnect ();
+
+	exit (0);
+}
+
+sub get_list
+{
+	my $DBH = shift;
+
+	my $sth = $DBH->prepare ("SELECT vhost FROM hits GROUP BY vhost ORDER BY vhost ASC");
+	$sth->execute ();
+
+	my @vhosts;
+
+	while (my ($vhost) = $sth->fetchrow_array ())
+	{
+		push (@vhosts, $vhost);
+	}
+
+	$sth->finish ();
+
+	return join (',', @vhosts);
+}

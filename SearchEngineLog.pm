@@ -11,7 +11,7 @@ use DBI;
 
 use vars qw#$SERVER $REGEXEN $DBH $STH#;
 
-our $VERSION = '0.21';
+our $VERSION = '0.22';
 
 return 1 if $0 eq 'test.pl';
 
