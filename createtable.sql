@@ -4,7 +4,10 @@ CREATE TABLE hits (
 	vhost  varchar(20) NOT NULL DEFAULT "",
 	uri    varchar(50) NOT NULL DEFAULT "",
 	domain varchar(20) NOT NULL DEFAULT "",
-	date   datetime    NOT NULL DEFAULT "0000-00-00 00:00:00"
+	date   datetime    NOT NULL DEFAULT "0000-00-00 00:00:00",
+	INDEX byvhost (vhost),
+	INDEX byuri (vhost,uri),
+	INDEX byterm (vhost,term)
 );
 
 CREATE TABLE config (

@@ -68,12 +68,12 @@ my $secsth;
 if (lc ($sort) eq 'uri')
 {
 	$primsth = $DBH->prepare ("SELECT uri, count(*) AS cnt FROM hits WHERE vhost = ? GROUP BY uri ORDER BY cnt DESC");
-	$secsth  = $DBH->prepare ("SELECT term, count(*) AS cnt FROM hits WHERE uri = ? AND vhost = ? GROUP BY term ORDER BY cnt DESC");
+	$secsth  = $DBH->prepare ("SELECT term, count(*) AS cnt FROM hits WHERE vhost = ? AND uri = ? GROUP BY term ORDER BY cnt DESC");
 }
 elsif (lc ($sort) eq 'term')
 {
 	$primsth = $DBH->prepare ("SELECT term, count(*) AS cnt FROM hits WHERE vhost = ? GROUP BY term ORDER BY cnt DESC");
-	$secsth = $DBH->prepare ("SELECT uri, count(*) AS cnt FROM hits WHERE term = ? AND vhost = ? GROUP BY uri ORDER BY cnt DESC");
+	$secsth = $DBH->prepare ("SELECT uri, count(*) AS cnt FROM hits WHERE vhost = ? AND term = ? GROUP BY uri ORDER BY cnt DESC");
 }
 
 $vhost ||= get_list ($DBH);

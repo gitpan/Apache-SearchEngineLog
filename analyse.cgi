@@ -65,7 +65,13 @@ if (!$vhost)
 	end_html ();
 
 	exit (0);
-}	
+}
+else
+{
+	$vhost =~ s#[^a-zA-Z0-9\-\.]##g;
+
+	$vhost || die;
+}
 
 foreach my $virtual (split (m#,\s*#, $vhost))
 {
@@ -153,10 +159,10 @@ sub init
 	$STHS = {};
 
 	$STHS->{'uri'}{'prim'} = $DBH->prepare ("SELECT uri, count(*) AS cnt FROM hits WHERE vhost = ? GROUP BY uri ORDER BY cnt DESC");
-	$STHS->{'uri'}{'secd'} = $DBH->prepare ("SELECT term, count(*) AS cnt FROM hits WHERE uri = ? AND vhost = ? GROUP BY term ORDER BY cnt DESC");
+	$STHS->{'uri'}{'secd'} = $DBH->prepare ("SELECT term, count(*) AS cnt FROM hits WHERE vhost = ? AND uri = ? GROUP BY term ORDER BY cnt DESC");
 
 	$STHS->{'term'}{'prim'} = $DBH->prepare ("SELECT term, count(*) AS cnt FROM hits WHERE vhost = ? GROUP BY term ORDER BY cnt DESC");
-	$STHS->{'term'}{'secd'} = $DBH->prepare ("SELECT uri, count(*) AS cnt FROM hits WHERE term = ? AND vhost = ? GROUP BY uri ORDER BY cnt DESC");
+	$STHS->{'term'}{'secd'} = $DBH->prepare ("SELECT uri, count(*) AS cnt FROM hits WHERE vhost = ? AND term = ? GROUP BY uri ORDER BY cnt DESC");
 
 	$STHS->{'vhosts'} = $DBH->prepare ("SELECT vhost FROM hits GROUP BY vhost ORDER BY vhost ASC");
 

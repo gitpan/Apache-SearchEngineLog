@@ -11,7 +11,7 @@ use DBI;
 
 use vars qw#$SERVER $REGEXEN $DBH $STH#;
 
-our $VERSION = '0.22';
+our $VERSION = '0.30';
 
 return 1 if $0 eq 'test.pl';
 
@@ -52,7 +52,7 @@ sub handler
 	my %params; # i know some people don't like this.. I do ;)
 	foreach (split (m#\&#, $params))
 	{
-		my ($key, $value) = split (m#=#, $_);
+		my ($key, $value) = split (m#=#, $_, 2);
 		$value =~ y#+# #;
 		$value =~ s#%([a-fA-F0-9]{2})#pack ("C", hex ($1))#eg;
 
@@ -88,8 +88,8 @@ sub handler
 		return 1;
 	}
 
-	# ignore goggle's cache-parameters
-	if ($params{$field} =~ m#^cache:\S+\s#)
+	# ignore goggle's cache-parameters and related option
+	if ($params{$field} =~ m#^(?:cache|related):\S+\s#)
 	{
 		$params{$field} = $';
 	}
@@ -239,7 +239,7 @@ Database, making it easy to analyse it and in turn optimize your website.
   | Field  | Type        | Null | Key | Default             | Extra |
   +--------+-------------+------+-----+---------------------+-------+
   | term   | varchar(50) |      |     |                     |       |
-  | vhost  | varchar(20) |      |     |                     |       |
+  | vhost  | varchar(20) |      | MUL |                     |       |
   | uri    | varchar(50) |      |     |                     |       |
   | domain | varchar(20) |      |     |                     |       |
   | date   | datetime    |      |     | 0000-00-00 00:00:00 |       |

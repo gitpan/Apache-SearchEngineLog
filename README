@@ -1,4 +1,4 @@
-Apache::SearchEngineLog 0.22 README
+Apache::SearchEngineLog 0.30 README
 -----------------------------------
 
 Apache::SearchEngineLog is a mod_perl module for apache to log the terms
@@ -16,7 +16,7 @@ This is the table for the actual reference data, by default named "hits".
   | Field  | Type        | Null | Key | Default             | Extra |
   +--------+-------------+------+-----+---------------------+-------+
   | term   | varchar(50) |      |     |                     |       |
-  | vhost  | varchar(20) |      |     |                     |       |
+  | vhost  | varchar(20) |      | MUL |                     |       |
   | uri    | varchar(50) |      |     |                     |       |
   | domain | varchar(20) |      |     |                     |       |
   | date   | datetime    |      |     | 0000-00-00 00:00:00 |       |
@@ -60,6 +60,9 @@ Performance
 Since this is the very first release I don't have any information on this
 topic yet. If you experience any difficulties under load, please let me
 know.
+
+The 'createtable.sql' creates indexes for the 'hits' table which should be
+a performance gain if you have a few entries in the database.
 
 
 Evaluation
